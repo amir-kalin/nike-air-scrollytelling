@@ -4,19 +4,19 @@
    ============================================================ */
 
 :root {
-  --bg-top: #9d9d9d;
-  --bg-bottom: #b2b2b2;
+  --bg-top: #9d9d9e;
+  --bg-bottom: #b6b6b6;
   --text-primary: #121316;
-  --text-secondary: rgba(18, 19, 22, 0.72);
-  --text-muted: rgba(18, 19, 22, 0.45);
+  --text-secondary: rgba(18, 19, 22, 0.75);
+  --text-muted: rgba(18, 19, 22, 0.48);
 
   --accent-sail: #e5dfd3;
   --accent-peach: #f59670;
   --accent-infrared: #ff3a21;
   --accent-gold: #c5a059;
 
-  --glass-bg: rgba(255, 255, 255, 0.55);
-  --glass-border: rgba(255, 255, 255, 0.65);
+  --glass-bg: rgba(255, 255, 255, 0.65);
+  --glass-border: rgba(255, 255, 255, 0.85);
   --glass-shadow: 0 20px 50px rgba(0, 0, 0, 0.08);
 
   --font-display: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -27,15 +27,15 @@
 }
 
 body.theme-dark {
-  --bg-top: #0e0f12;
-  --bg-bottom: #16181d;
-  --text-primary: #f0f2f5;
-  --text-secondary: rgba(240, 242, 245, 0.75);
-  --text-muted: rgba(240, 242, 245, 0.45);
+  --bg-top: #9d9d9e;
+  --bg-bottom: #b6b6b6;
+  --text-primary: #121316;
+  --text-secondary: rgba(18, 19, 22, 0.75);
+  --text-muted: rgba(18, 19, 22, 0.48);
 
-  --glass-bg: rgba(20, 22, 28, 0.65);
-  --glass-border: rgba(255, 255, 255, 0.12);
-  --glass-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  --glass-bg: rgba(255, 255, 255, 0.65);
+  --glass-border: rgba(255, 255, 255, 0.85);
+  --glass-shadow: 0 20px 50px rgba(0, 0, 0, 0.08);
 }
 
 *, *::before, *::after {
@@ -66,11 +66,10 @@ html.lenis, html.lenis body {
 
 body {
   font-family: var(--font-body);
-  background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
+  background: linear-gradient(180deg, #9d9d9e 0%, #b6b6b8 50%, #c4c3c6 68%, #b6b6b6 100%);
   background-attachment: fixed;
   color: var(--text-primary);
   min-height: 100vh;
-  transition: background 0.6s var(--ease-out-expo), color 0.4s ease;
   user-select: none;
 }
 
@@ -571,9 +570,10 @@ body.theme-dark .chapter-line {
 .hero-content {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  min-height: 80vh;
+  justify-content: flex-start;
+  min-height: auto;
   padding-top: 1rem;
+  padding-bottom: 6rem;
 }
 
 .glass-tag {
@@ -606,11 +606,11 @@ body.theme-dark .chapter-line {
 
 .hero-main-title {
   font-family: var(--font-display);
-  font-size: clamp(2.5rem, 6.5vw, 6.2rem);
+  font-size: clamp(2.2rem, 5.2vw, 5.2rem);
   font-weight: 900;
   letter-spacing: -0.04em;
-  line-height: 0.92;
-  margin: 0.75rem 0 0 0;
+  line-height: 0.95;
+  margin: 1.2rem 0 2rem 0;
   text-transform: uppercase;
   pointer-events: none;
 }
@@ -625,8 +625,8 @@ body.theme-dark .chapter-line {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  gap: 3rem;
-  margin-top: auto;
+  gap: 2.5rem;
+  margin-top: 0.5rem;
 }
 
 .hero-desc-block {
@@ -1332,9 +1332,31 @@ body.theme-dark .guarantee-list {
   object-fit: contain;
 }
 
+.edition-tagline {
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  padding: 0.35rem 0.9rem;
+  color: var(--text-primary);
+}
+
+.spin-slow {
+  animation: spinSlow 12s linear infinite;
+}
+
+@keyframes spinSlow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 /* ============================================================
    RESPONSIVE QUERIES
    ============================================================ */
+@media (max-width: 1280px) {
+  .chapter-tracker { display: none; }
+}
+
 @media (max-width: 1024px) {
   .site-header { padding: 0 1.5rem; }
   .header-center { display: none; }
@@ -1350,7 +1372,8 @@ body.theme-dark .guarantee-list {
 }
 
 @media (max-width: 640px) {
-  .hero-main-title { font-size: 3rem; }
+  .hero-main-title { font-size: 2.8rem; }
   .spec-grid-interactive { grid-template-columns: 1fr; }
   .size-grid { grid-template-columns: repeat(3, 1fr); }
+  .edition-tagline { display: none; }
 }

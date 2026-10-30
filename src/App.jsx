@@ -21,18 +21,19 @@ const FRAME_PATH = (idx) => `/frames_webp/frame_${String(idx).padStart(4, '0')}.
 export default function App() {
   const [loadProgress, setLoadProgress] = useState(0);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [currentFrame, setCurrentFrame] = useState(1);
+  const [displayFrame, setDisplayFrame] = useState(1);
   const [activeChapter, setActiveChapter] = useState(0);
   const [scrollProgress, setScrollProgress] = useState(0);
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [isVideoOpen, setIsVideoOpen] = useState(false);
 
   const canvasRef = useRef(null);
+  const offCanvasRef = useRef(null);
   const imagesRef = useRef([]);
   const lenisRef = useRef(null);
   const isManualScrubbingRef = useRef(false);
   const lastPlayedFrameRef = useRef(1);
+  const currentFrameRef = useRef(1);
 
   // --- 1. Canvas Rendering Engine ---
   const renderFrame = useCallback((frameIdx) => {
@@ -42,82 +43,76 @@ export default function App() {
     if (!ctx) return;
 
     const clampedIdx = Math.max(1, Math.min(TOTAL_FRAMES, Math.round(frameIdx)));
+    currentFrameRef.current = clampedIdx;
+
     const img = imagesRef.current[clampedIdx - 1];
     if (!img || !img.complete || img.naturalWidth === 0) return;
 
     const width = window.innerWidth;
     const height = window.innerHeight;
 
-    // Aspect ratio containment
-    const imgRatio = img.naturalWidth / img.naturalHeight;
-    const screenRatio = width / height;
-
-    let drawW, drawH, drawX, drawY;
-
-    if (screenRatio > 1.2) {
-      // Landscape desktop: smoothly shift shoe to left as user advances through story
-      drawH = height * 0.88;
-      drawW = drawH * imgRatio;
-
-      const maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
-      const scrollPct = window.scrollY / maxScroll;
-      const targetCenterX = gsap.utils.interpolate(width * 0.5, width * 0.34, Math.min(1, scrollPct * 2.2));
-
-      drawX = targetCenterX - drawW / 2;
-      drawY = (height - drawH) / 2;
-    } else {
-      // Mobile / Portrait: centered
-      drawW = width * 0.95;
-      drawH = drawW / imgRatio;
-      drawX = (width - drawW) / 2;
-      drawY = (height - drawH) / 2;
-    }
-
-    // Studio background gradient matching video perimeter
-    if (!isDarkMode) {
-      const gradient = ctx.createLinearGradient(0, drawY, 0, drawY + drawH);
-      gradient.addColorStop(0, '#9c9c9e');
-      gradient.addColorStop(0.35, '#b6b6b6');
-      gradient.addColorStop(1, '#b6b6b6');
-      ctx.fillStyle = gradient;
-    } else {
-      const gradient = ctx.createLinearGradient(0, 0, 0, height);
-      gradient.addColorStop(0, '#0e0f12');
-      gradient.addColorStop(0.5, '#131418');
-      gradient.addColorStop(1, '#18191d');
-      ctx.fillStyle = gradient;
-    }
+    // Mathematically sampled studio gradient matching the photography studio exactly
+    const grad = ctx.createLinearGradient(0, 0, 0, height);
+    grad.addColorStop(0, '#9d9d9e');
+    grad.addColorStop(0.2, '#9e9e9e');
+    grad.addColorStop(0.4, '#ababab');
+    grad.addColorStop(0.5, '#b6b6b8');
+    grad.addColorStop(0.68, '#c4c3c6');
+    grad.addColorStop(0.85, '#c0c0c2');
+    grad.addColorStop(1, '#b6b6b6');
+    ctx.fillStyle = grad;
     ctx.fillRect(0, 0, width, height);
 
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(img, drawX, drawY, drawW, drawH);
+    // Image sizing & positioning
+    const imgRatio = img.naturalWidth / img.naturalHeight; // 800 / 1422 = ~0.5626
+    const drawH = height;
+    const drawW = Math.round(drawH * imgRatio);
+    const drawY = 0;
 
-    // Top edge feather
-    const topFeatherH = Math.min(drawH * 0.08, 60);
-    const topGrad = ctx.createLinearGradient(0, drawY, 0, drawY + topFeatherH);
-    topGrad.addColorStop(0, isDarkMode ? '#0e0f12' : '#9c9c9e');
-    topGrad.addColorStop(1, isDarkMode ? 'rgba(14, 15, 18, 0)' : 'rgba(156, 156, 158, 0)');
-    ctx.fillStyle = topGrad;
-    ctx.fillRect(drawX - 2, drawY - 2, drawW + 4, topFeatherH + 2);
+    let drawX;
+    if (width >= 1024) {
+      // Landscape: center shoe slightly to the right to leave comfortable breathing room for story cards
+      const scrollPct = scrollProgress;
+      const targetCenterX = gsap.utils.interpolate(width * 0.52, width * 0.46, Math.min(1, scrollPct * 2));
+      drawX = Math.round(targetCenterX - drawW / 2);
+    } else {
+      // Mobile / Tablet: centered
+      drawX = Math.round((width - drawW) / 2);
+    }
 
-    // Left and Right edge feather
-    const sideFeatherW = Math.min(drawW * 0.16, 100);
+    // High performance offscreen feathering for 100% invisible edge transitions
+    if (!offCanvasRef.current) {
+      offCanvasRef.current = document.createElement('canvas');
+    }
+    const offCanvas = offCanvasRef.current;
+    if (offCanvas.width !== drawW || offCanvas.height !== drawH) {
+      offCanvas.width = drawW;
+      offCanvas.height = drawH;
+    }
+    const offCtx = offCanvas.getContext('2d');
+    if (offCtx) {
+      offCtx.clearRect(0, 0, drawW, drawH);
+      offCtx.drawImage(img, 0, 0, drawW, drawH);
 
-    const leftGrad = ctx.createLinearGradient(drawX, 0, drawX + sideFeatherW, 0);
-    leftGrad.addColorStop(0, isDarkMode ? '#0e0f12' : '#b6b6b6');
-    leftGrad.addColorStop(1, isDarkMode ? 'rgba(14, 15, 18, 0)' : 'rgba(182, 182, 182, 0)');
-    ctx.fillStyle = leftGrad;
-    ctx.fillRect(drawX - 2, drawY, sideFeatherW + 2, drawH);
+      // Feather left and right edges seamlessly
+      const featherW = Math.min(36, drawW * 0.1);
+      offCtx.globalCompositeOperation = 'destination-in';
+      const maskGrad = offCtx.createLinearGradient(0, 0, drawW, 0);
+      maskGrad.addColorStop(0, 'rgba(0,0,0,0)');
+      maskGrad.addColorStop(featherW / drawW, 'rgba(0,0,0,1)');
+      maskGrad.addColorStop(1 - featherW / drawW, 'rgba(0,0,0,1)');
+      maskGrad.addColorStop(1, 'rgba(0,0,0,0)');
+      offCtx.fillStyle = maskGrad;
+      offCtx.fillRect(0, 0, drawW, drawH);
+      offCtx.globalCompositeOperation = 'source-over';
 
-    const rightGrad = ctx.createLinearGradient(drawX + drawW, 0, drawX + drawW - sideFeatherW, 0);
-    rightGrad.addColorStop(0, isDarkMode ? '#0e0f12' : '#b6b6b6');
-    rightGrad.addColorStop(1, isDarkMode ? 'rgba(14, 15, 18, 0)' : 'rgba(182, 182, 182, 0)');
-    ctx.fillStyle = rightGrad;
-    ctx.fillRect(drawX + drawW - sideFeatherW, drawY, sideFeatherW + 2, drawH);
-
-    setCurrentFrame(clampedIdx);
-  }, [isDarkMode]);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(offCanvas, drawX, drawY);
+    } else {
+      ctx.drawImage(img, drawX, drawY, drawW, drawH);
+    }
+  }, [scrollProgress]);
 
   // Handle Canvas Resize
   const handleResize = useCallback(() => {
@@ -127,8 +122,8 @@ export default function App() {
     const width = window.innerWidth;
     const height = window.innerHeight;
 
-    canvas.width = width * dpr;
-    canvas.height = height * dpr;
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
     canvas.style.width = width + 'px';
     canvas.style.height = height + 'px';
 
@@ -136,15 +131,15 @@ export default function App() {
     if (ctx) {
       ctx.scale(dpr, dpr);
     }
-    renderFrame(currentFrame);
-  }, [renderFrame, currentFrame]);
+    renderFrame(currentFrameRef.current);
+  }, [renderFrame]);
 
   useEffect(() => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [handleResize]);
 
-  // --- 2. Frame Preloading Engine ---
+  // --- 2. Frame Preloading Engine (Runs STRICTLY ONCE on Mount) ---
   useEffect(() => {
     if ('scrollRestoration' in history) {
       history.scrollRestoration = 'manual';
@@ -182,22 +177,23 @@ export default function App() {
     }
 
     imagesRef.current = loadedImages;
-  }, [handleResize]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // --- 3. Lenis & GSAP ScrollTrigger Integration ---
+  // --- 3. Lenis & GSAP ScrollTrigger Integration (Runs ONLY when loaded) ---
   useEffect(() => {
     if (!isLoaded) return;
 
     handleResize();
 
     const lenis = new Lenis({
-      duration: 1.25,
+      duration: 1.2,
       easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
       orientation: 'vertical',
       gestureOrientation: 'vertical',
       smoothWheel: true,
-      wheelMultiplier: 1.1,
-      touchMultiplier: 1.5,
+      wheelMultiplier: 1.0,
+      touchMultiplier: 1.2,
       infinite: false,
     });
     lenisRef.current = lenis;
@@ -224,13 +220,19 @@ export default function App() {
         trigger: '#scrollyContainer',
         start: 'top top',
         end: 'bottom bottom',
-        scrub: 0.6,
+        scrub: 0.5,
         onUpdate: () => {
           if (!isManualScrubbingRef.current) {
-            renderFrame(frameObj.frame);
+            const current = Math.round(frameObj.frame);
+            renderFrame(current);
 
-            if (Math.abs(frameObj.frame - lastPlayedFrameRef.current) > 28) {
-              lastPlayedFrameRef.current = frameObj.frame;
+            // Only update display state if it changed by at least 2 frames to avoid React overhead
+            if (Math.abs(current - lastPlayedFrameRef.current) >= 2) {
+              setDisplayFrame(current);
+            }
+
+            if (Math.abs(current - lastPlayedFrameRef.current) > 28) {
+              lastPlayedFrameRef.current = current;
               playSwooshSound();
             }
           }
@@ -252,7 +254,7 @@ export default function App() {
 
     // Section 2 side card entrance
     const card1Anim = gsap.from('#cardElevation1', {
-      x: -80,
+      x: -60,
       opacity: 0,
       duration: 1,
       ease: 'power3.out',
@@ -264,7 +266,7 @@ export default function App() {
     });
 
     const card2Anim = gsap.from('#cardElevation2', {
-      x: 80,
+      x: 60,
       opacity: 0,
       duration: 1,
       ease: 'power3.out',
@@ -277,8 +279,8 @@ export default function App() {
 
     // Section 3 tactile entrance
     const tactileAnim = gsap.from('#tactileBox', {
-      y: 60,
-      scale: 0.94,
+      y: 50,
+      scale: 0.96,
       opacity: 0,
       duration: 1.2,
       ease: 'power3.out',
@@ -298,7 +300,8 @@ export default function App() {
       tactileAnim.kill();
       lenis.destroy();
     };
-  }, [isLoaded, renderFrame, handleResize]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded]);
 
   // Navigate to section
   const handleNavigate = (index) => {
@@ -326,6 +329,7 @@ export default function App() {
   // Manual 360 Scrubber
   const handleManualScrub = (targetFrame) => {
     isManualScrubbingRef.current = true;
+    setDisplayFrame(targetFrame);
     renderFrame(targetFrame);
     playUiTone(300 + targetFrame * 2, 'sine', 0.04, 0.02);
 
@@ -333,17 +337,6 @@ export default function App() {
     window.__scrubTimeout = setTimeout(() => {
       isManualScrubbingRef.current = false;
     }, 300);
-  };
-
-  // Theme switch
-  const handleToggleTheme = (dark) => {
-    setIsDarkMode(dark);
-    if (dark) {
-      document.body.classList.add('theme-dark');
-    } else {
-      document.body.classList.remove('theme-dark');
-    }
-    renderFrame(currentFrame);
   };
 
   // Audio Toggle
@@ -387,7 +380,7 @@ export default function App() {
 
       {/* Hotspots for Sections 1, 2, 3 */}
       <Hotspots
-        currentFrame={currentFrame}
+        currentFrame={displayFrame}
         activeChapter={activeChapter}
       />
 
@@ -395,7 +388,7 @@ export default function App() {
       <main className="scrolly-container" id="scrollyContainer">
         <StorySection onNavigate={handleNavigate} />
         <Showroom
-          currentFrame={currentFrame}
+          currentFrame={displayFrame}
           totalFrames={TOTAL_FRAMES}
           onManualScrub={handleManualScrub}
           onAddToCart={handleAddToCart}
@@ -404,8 +397,6 @@ export default function App() {
 
       <StickyControls
         scrollProgress={scrollProgress}
-        isDarkMode={isDarkMode}
-        onToggleTheme={handleToggleTheme}
         onScrollTop={handleScrollTop}
       />
 
